@@ -485,19 +485,20 @@ instance BinaryState Integer Instruction where
   put (GOTO x)        = put1 167 x
   put (JSR x)         = put1 168 x
   put  RET            = putByte 169
+
   put (TABLESWITCH _ def low high offs) = do
                                    putByte 170
                                    offset <- getOffset
-                                   let pads = 4 - (offset `mod` 4)
-                                   replicateM (fromIntegral pads) (putByte 0)
+                                   let pads = padding offset
+                                   replicateM pads (putByte 0)
                                    put low
                                    put high
                                    forM_ offs put
   put (LOOKUPSWITCH _ def n pairs) = do
                                    putByte 171
                                    offset <- getOffset
-                                   let pads = 4 - (offset `mod` 4)
-                                   replicateM (fromIntegral pads) (putByte 0)
+                                   let pads = padding offset
+                                   replicateM pads (putByte 0)
                                    put def
                                    put n
                                    forM_ pairs put
@@ -654,8 +655,8 @@ instance BinaryState Integer Instruction where
       169 -> return RET
       170 -> do
              offset <- bytesRead
-             let pads = 4 - (offset `mod` 4)
-             skip (fromIntegral pads)
+             let pads = padding offset
+             skip pads
              def <- get
              low <- get
              high <- get
@@ -663,8 +664,8 @@ instance BinaryState Integer Instruction where
              return $ TABLESWITCH (fromIntegral pads) def low high offs
       171 -> do
              offset <- bytesRead
-             let pads = 4 - (offset `mod` 4)
-             skip (fromIntegral pads)
+             let pads = padding offset
+             skip pads
              def <- get
              n <- get
              pairs <- replicateM (fromIntegral n) get
@@ -726,3 +727,6 @@ decodeMethod str = decodeS (0 :: Integer) str
 encodeMethod :: Code -> B.ByteString
 encodeMethod code = encodeS (0 :: Integer) code
 
+-- | Calculate padding for current bytecode offset (cf. TABLESWITCH and LOOKUPSWITCH)
+padding :: (Integral a, Integral b) => a -> b
+padding offset = fromIntegral $ (4 - offset) `mod` 4
